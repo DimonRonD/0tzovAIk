@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -34,6 +35,14 @@ class KnowledgeTemplate:
     template_id: str
     response_template: str
     answer_template: str
+
+
+@dataclass(frozen=True)
+class AnalyticsSummary:
+    report_date: str
+    total_reviews: int
+    tone_counts: dict[str, int]
+    urgent_by_day_and_tone: dict[str, dict[str, int]]
 
 
 class GoogleSheetsService:
@@ -90,6 +99,42 @@ class GoogleSheetsService:
         logger.info("Загружено шаблонов: %s", len(templates))
         return templates
 
+    def get_analytics_summary(self, report_date: str) -> AnalyticsSummary:
+        logger.info("Построение аналитики по таблице откликов для даты %s", report_date)
+        records = self.responses_sheet.get_all_records()
+
+        tone_counts: Counter[str] = Counter()
+        urgent_by_day_and_tone: defaultdict[str, Counter[str]] = defaultdict(Counter)
+        total_reviews = 0
+
+        for row in records:
+            response_date = str(row.get("Response_date", "")).strip()
+            tone = str(row.get("Tone", "")).strip() or "не указано"
+            template_label = str(row.get("Template", "")).strip()
+            row_date = self._extract_date(response_date)
+
+            if row_date == report_date:
+                total_reviews += 1
+                tone_counts[tone] += 1
+
+            if "urgent" in template_label.lower() and row_date:
+                urgent_by_day_and_tone[row_date][tone] += 1
+
+        logger.info(
+            "Аналитика построена: total_reviews=%s, urgent_days=%s",
+            total_reviews,
+            len(urgent_by_day_and_tone),
+        )
+        return AnalyticsSummary(
+            report_date=report_date,
+            total_reviews=total_reviews,
+            tone_counts=dict(sorted(tone_counts.items())),
+            urgent_by_day_and_tone={
+                day: dict(sorted(counts.items()))
+                for day, counts in sorted(urgent_by_day_and_tone.items())
+            },
+        )
+
     def append_response(
         self,
         review_id: str,
@@ -106,3 +151,17 @@ class GoogleSheetsService:
             logger.debug("Данные строки: %s", row)
         self.responses_sheet.append_row(row, value_input_option="USER_ENTERED")
         logger.info("Ответ успешно сохранен в Google Sheets")
+
+    @staticmethod
+    def _extract_date(value: str) -> str:
+        if not value:
+            return ""
+
+        normalized = value.strip().replace("/", "-").replace(".", "-")
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(normalized, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+
+        return ""
