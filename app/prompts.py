@@ -1,4 +1,14 @@
-SYSTEM_PROMPT = """
+from __future__ import annotations
+
+import logging
+from urllib.parse import urlparse
+from urllib.request import urlopen
+
+
+logger = logging.getLogger(__name__)
+
+
+FALLBACK_SYSTEM_PROMPT = """
 Ты - ИИ-ассистент для работы с отзывами клиентов.
 
 Твоя цель:
@@ -63,3 +73,30 @@ SYSTEM_PROMPT = """
   "answer": "Спасибо за ваше предложение. Идея добавить оплату через СБП действительно может сделать сервис удобнее. Передадим это пожелание команде для рассмотрения."
 }
 """.strip()
+
+
+def load_system_prompt(system_prompt_doc_url: str) -> str:
+    export_url = _build_google_docs_export_url(system_prompt_doc_url)
+    logger.info("Загрузка системного промпта из Google Docs")
+    logger.debug("URL экспорта промпта: %s", export_url)
+
+    with urlopen(export_url, timeout=30) as response:
+        prompt_text = response.read().decode("utf-8").strip()
+
+    if not prompt_text:
+        raise ValueError("Google Docs вернул пустой системный промпт")
+
+    logger.info("Системный промпт успешно загружен из Google Docs")
+    return prompt_text
+
+
+def _build_google_docs_export_url(system_prompt_doc_url: str) -> str:
+    parsed = urlparse(system_prompt_doc_url)
+    path_parts = [part for part in parsed.path.split("/") if part]
+
+    try:
+        document_id = path_parts[path_parts.index("d") + 1]
+    except (ValueError, IndexError) as error:
+        raise ValueError("Некорректная ссылка на Google Docs в SYSTEM_PROMPT_DOC_URL") from error
+
+    return f"https://docs.google.com/document/d/{document_id}/export?format=txt"

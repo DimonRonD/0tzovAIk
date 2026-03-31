@@ -20,6 +20,11 @@ def load_settings() -> Settings:
     load_dotenv()
 
     google_service_account_raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "{}")
+    google_service_account_info = json.loads(google_service_account_raw)
+
+    private_key = google_service_account_info.get("private_key")
+    if isinstance(private_key, str):
+        google_service_account_info["private_key"] = private_key.replace("\\n", "\n")
 
     return Settings(
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
@@ -28,5 +33,5 @@ def load_settings() -> Settings:
         responses_sheet_url=os.getenv("GOOGLE_RESPONSES_SHEET_URL", ""),
         knowledge_base_sheet_url=os.getenv("GOOGLE_KNOWLEDGE_BASE_SHEET_URL", ""),
         system_prompt_doc_url=os.getenv("SYSTEM_PROMPT_DOC_URL", ""),
-        google_service_account_info=json.loads(google_service_account_raw),
+        google_service_account_info=google_service_account_info,
     )
