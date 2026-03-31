@@ -1,0 +1,10 @@
+services:
+  review-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: review-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: python main.py
