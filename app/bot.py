@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
@@ -28,6 +29,7 @@ class ReviewBot:
 
         self.application.add_handler(CommandHandler("start", self.start))
         self.application.add_handler(CommandHandler("help", self.help_command))
+        self.application.add_handler(CommandHandler("update", self.update_command))
         self.application.add_handler(CommandHandler("analize", self.analize))
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.process_review))
         self.application.add_error_handler(self.error_handler)
@@ -41,6 +43,17 @@ class ReviewBot:
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.info("Получена команда /help")
         await update.message.reply_text(self._format_help_message())
+
+    async def update_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.info("Получена команда /update")
+
+        try:
+            await update.message.reply_text(self._read_update_guide())
+        except Exception:
+            logger.exception("Ошибка при чтении инструкции обновления")
+            await update.message.reply_text(
+                "Не удалось прочитать инструкцию по обновлению. Попробуйте еще раз позже."
+            )
 
     async def analize(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.info("Получена команда /analize")
@@ -162,6 +175,7 @@ class ReviewBot:
                 "Доступные команды:",
                 "/start - краткое приветствие и запуск бота",
                 "/help - список всех доступных команд",
+                "/update - показать инструкцию по обновлению ассистента",
                 "/analize - аналитика по отзывам за текущий день",
                 "/analize YYYY-MM-DD - аналитика за указанную дату",
                 "/analize DD.MM.YYYY - аналитика за указанную дату в русском формате",
@@ -169,3 +183,8 @@ class ReviewBot:
                 "Также можно просто отправить текст отзыва, и бот подготовит ответ автоматически.",
             ]
         )
+
+    @staticmethod
+    def _read_update_guide() -> str:
+        update_guide_path = Path(__file__).resolve().parent.parent / "docs" / "update_guide.md"
+        return update_guide_path.read_text(encoding="utf-8").strip()

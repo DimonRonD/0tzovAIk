@@ -80,14 +80,19 @@ def load_system_prompt(system_prompt_doc_url: str) -> str:
     logger.info("Загрузка системного промпта из Google Docs")
     logger.debug("URL экспорта промпта: %s", export_url)
 
-    with urlopen(export_url, timeout=30) as response:
-        prompt_text = response.read().decode("utf-8").strip()
+    try:
+        with urlopen(export_url, timeout=30) as response:
+            prompt_text = response.read().decode("utf-8").strip()
 
-    if not prompt_text:
-        raise ValueError("Google Docs вернул пустой системный промпт")
+        if not prompt_text:
+            raise ValueError("Google Docs вернул пустой системный промпт")
 
-    logger.info("Системный промпт успешно загружен из Google Docs")
-    return prompt_text
+        logger.info("Системный промпт успешно загружен из Google Docs")
+        return prompt_text
+    except Exception:
+        logger.exception("Не удалось загрузить системный промпт из Google Docs")
+        logger.warning("Используется резервный системный промпт из app/prompts.py")
+        return FALLBACK_SYSTEM_PROMPT
 
 
 def _build_google_docs_export_url(system_prompt_doc_url: str) -> str:
